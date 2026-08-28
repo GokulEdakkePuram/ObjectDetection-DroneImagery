@@ -1,0 +1,28 @@
+# Shared defaults. Every experiment inherits from here via `extends: base`, so
+# an ablation config only states the lines that actually differ.
+model: yolo11s.pt
+data: VisDrone.yaml
+device: auto
+seed: 0
+workers: 8
+patience: 20
+
+train_args:
+  optimizer: auto
+  cos_lr: true
+  # Mosaic is unusually valuable on VisDrone: it packs four scenes into one
+  # canvas, which multiplies the number of small objects the model sees per
+  # step. Disabling it for the last epochs removes the domain gap between
+  # augmented training images and clean validation images.
+  mosaic: 1.0
+  close_mosaic: 10
+  # Aerial imagery has no canonical "up", but VisDrone is captured with a
+  # consistent camera tilt, so vertical flips would invent poses that never
+  # occur at test time.
+  fliplr: 0.5
+  flipud: 0.0
+  # Small objects vanish under aggressive downscaling, so scale jitter is
+  # narrower than the Ultralytics default of 0.5.
+  scale: 0.4
+  degrees: 0.0
+  plots: true
