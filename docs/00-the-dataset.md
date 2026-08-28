@@ -24,7 +24,39 @@ transfer-learning formality:
 - **Label semantics that COCO does not share.** `pedestrian` vs `people` is a
   *pose* distinction (walking/standing vs any other posture), and
   `awning-tricycle` has no COCO analogue at all. So the pretrained head cannot
-  simply be re-used — this is real fine-tuning, not a class remap.
+  simply be re-used — this is real fine-tuning, not a class remap. See below
+  for how much of the head actually survives.
+
+## What the pretrained weights actually transfer
+
+Starting a run prints one line that is easy to scroll past:
+
+```
+Remapped 4/10 cls head rows from pretrained weights by class name
+Transferred 451/499 items from pretrained weights
+```
+
+Ultralytics matches target class names against the checkpoint's names
+(case-insensitively) and copies just those rows of the classification head;
+every unmatched row is randomly initialised. Only four VisDrone names exist
+verbatim in COCO:
+
+| inherits its COCO row | starts from scratch | why not |
+| --- | --- | --- |
+| `car`, `bus`, `truck`, `bicycle` | `pedestrian`, `people` | COCO calls it `person`, and neither VisDrone class means quite that |
+| | `motor` | COCO calls it `motorcycle` |
+| | `van`, `tricycle`, `awning-tricycle` | no COCO analogue |
+
+So **6 of 10 classifier rows begin as noise** — and two of them,
+`pedestrian` and `people`, account for 31% of all training boxes. The backbone
+transfers nearly intact (451/499 tensors), which is where the real value of
+pretraining lies; the head largely does not.
+
+Two practical consequences. Freezing the backbone would be defensible here;
+freezing the head would not. And a plain zero-shot COCO baseline is not a
+meaningful control on this dataset — the classes do not line up — which is why
+the control run in this repo is a *fine-tuned* model at stock resolution
+rather than an off-the-shelf one.
 
 ## Label format and the ignored-region trap
 
