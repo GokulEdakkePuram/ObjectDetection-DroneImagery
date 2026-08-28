@@ -21,18 +21,32 @@ way to make a result look better than it is.
 
 ## Traps specific to this dataset
 
-**`max_det` truncates dense frames.** The default cap is 300 detections per
-image. VisDrone frames regularly exceed that, so the cap costs recall on
-exactly the hardest images — and it looks like a model failure in the metrics.
-Raise it when validating dense scenes:
+**`max_det` can truncate, but not for the obvious reason.** My first guess was
+that VisDrone frames simply contain more than the default cap of 300 objects.
+The profile says otherwise: only 3 of 548 validation images exceed 300
+annotated boxes, and the densest has 317. On ground-truth density alone the
+cap is nearly irrelevant.
+
+The cap still matters, on the *prediction* side. Ultralytics validates at
+`conf=0.001`, not the `0.25` used for prediction — deliberately, because mAP
+sweeps the confidence threshold and needs the low-confidence tail to trace out
+the high-recall end of the PR curve. At that threshold a detector emits far
+more candidate boxes than there are objects, so on a 70-object image the 300
+cap can bind even though ground truth is nowhere near it. What gets discarded
+is exactly the tail that the recall sweep depends on.
+
+So it is worth measuring rather than either ignoring or "fixing" blind:
 
 ```bash
-uv run aerialdet eval <weights> --imgsz 960   # then compare with max_det raised
+uv run aerialdet eval <weights> --imgsz 960   # then re-run with max_det raised
 ```
 
-**Class imbalance hides in the mean.** mAP weights every class equally, so a
-class with 200 instances moves the headline number as much as `car` with
-200,000. That cuts both ways: it is why mAP is a fairer summary than
+If mAP does not move, the cap was not binding and the default stands. That is
+a cheap experiment and a better answer than an assumption in either direction.
+
+**Class imbalance hides in the mean.** mAP weights every class equally, so
+`awning-tricycle` (3,246 boxes) moves the headline number exactly as much as
+`car` (144,867) — a 45:1 imbalance. That cuts both ways: it is why mAP is a fairer summary than
 accuracy, and why a jump in mAP can come entirely from one rare class getting
 slightly luckier. Always read the per-class AP50 table next to it.
 

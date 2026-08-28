@@ -20,7 +20,7 @@ transfer-learning formality:
 
 - **Scale.** Most objects are "small" by the COCO convention (area < 32x32 px).
   See [doc 01](01-why-small-objects-are-hard.md).
-- **Density.** Hundreds of objects per frame is normal, not exceptional.
+- **Density.** 53 objects per training image on average, and up to 902.
 - **Label semantics that COCO does not share.** `pedestrian` vs `people` is a
   *pose* distinction (walking/standing vs any other posture), and
   `awning-tricycle` has no COCO analogue at all. So the pretrained head cannot
@@ -62,18 +62,51 @@ rather than on the claim that VisDrone is hard.
 
 ## Profile
 
-> Paste the table from `reports/dataset_profile.md` here once it has run.
+Measured with `make profile` (full output in `reports/dataset_profile.md`).
+Box areas are in pixels, bucketed by the COCO convention.
 
 | split | images | boxes | boxes/img | small % | medium % | large % |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| train | | | | | | |
-| val | | | | | | |
+| train | 6,471 | 343,205 | 53.0 | 60.5 | 34.0 | 5.5 |
+| val | 548 | 38,759 | 70.7 | 68.6 | 28.7 | 2.8 |
+| test | 1,610 | 75,102 | 46.6 | 67.7 | 29.1 | 3.2 |
 
-### Class balance
+Three things fall out of this that were worth measuring rather than assuming:
 
-> The long tail matters. If `car` is an order of magnitude more common than
-> `awning-tricycle`, then overall mAP is largely a `car` score, and the
-> per-class table is the one to read.
+**The small-object claim holds, but it is 60%, not 90%.** A clear majority of
+boxes are under 32x32 px, and another third are under 96x96 -- only 5.5% of
+training boxes are "large". So resolution should matter a lot, but there is
+also a real medium-scale population that a 640 px model can already handle.
+
+**Val is denser and harder than train.** 70.7 boxes per image against 53.0,
+and 68.6% small against 60.5%. The validation split is not a random sample of
+train, so val mAP is a slightly pessimistic estimate — fine for comparing runs
+against each other, worth remembering before comparing against a paper.
+
+**No empty images in any split.** Every frame has at least one object, so
+there is no background-only imagery to calibrate the false-positive rate on.
+
+### Class balance (train)
+
+| class | boxes | share |
+| --- | ---: | ---: |
+| car | 144,867 | 42.2% |
+| pedestrian | 79,337 | 23.1% |
+| motor | 29,647 | 8.6% |
+| people | 27,059 | 7.9% |
+| van | 24,956 | 7.3% |
+| truck | 12,875 | 3.8% |
+| bicycle | 10,480 | 3.1% |
+| bus | 5,926 | 1.7% |
+| tricycle | 4,812 | 1.4% |
+| awning-tricycle | 3,246 | 0.9% |
+
+`car` outnumbers `awning-tricycle` 45:1. Since mAP weights every class
+equally, `awning-tricycle` -- with 0.9% of the boxes -- moves the headline
+number exactly as much as `car` does. Expect the rare classes to be both the
+worst-scoring and the noisiest between runs, and read the per-class table
+before believing any change in the mean. See
+[doc 04](04-reading-the-metrics.md).
 
 ## Licence
 

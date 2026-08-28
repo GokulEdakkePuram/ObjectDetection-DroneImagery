@@ -57,13 +57,16 @@ mAP50 here, and why both numbers are reported in
 
 ## 3. Scenes are dense, so NMS becomes a real decision
 
-VisDrone images routinely contain hundreds of annotated objects, packed at
-parking-lot density. Two consequences:
+VisDrone averages 53 objects per training image and 70.7 per validation image,
+peaking at 902 -- against roughly 7 per image on COCO. Two consequences:
 
-- The default `max_det=300` silently truncates predictions on the busiest
-  frames, capping recall before the model is even at fault.
 - NMS IoU thresholds tuned for sparse COCO scenes will merge genuinely
-  distinct adjacent cars.
+  distinct adjacent cars in a packed parking lot.
+- The default `max_det=300` can truncate the low-confidence tail of the
+  predictions during validation, which is where recall is earned. Note this
+  is a *prediction-side* limit, not a ground-truth one -- only 0.5% of val
+  images have more than 300 annotated objects. See
+  [doc 04](04-reading-the-metrics.md).
 
 ## What this repo does about it
 
@@ -74,4 +77,4 @@ assertion:
 | --- | --- | --- |
 | stride resolution floor | train and evaluate at higher `imgsz` | [`configs/`](../configs), [doc 02](02-resolution-and-stride.md) |
 | stride floor, at inference time | overlapping tiled inference | [`tiling.py`](../src/aerialdet/tiling.py), [doc 03](03-tiled-inference.md) |
-| dense scenes | raise `max_det`, tune NMS IoU | [doc 04](04-reading-the-metrics.md) |
+| dense scenes | measure the `max_det` cap, tune NMS IoU | [doc 04](04-reading-the-metrics.md) |
