@@ -1,0 +1,10 @@
+# The main experiment: same model and schedule, higher input resolution.
+#
+# Isolating imgsz as the only change from baseline_640 is what makes the
+# comparison an ablation rather than an anecdote.
+extends: base
+name: finetune_960
+imgsz: 960
+batch: 4
+epochs: 50
+notes: "Resolution ablation against baseline_640; only imgsz and batch differ."

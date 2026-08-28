@@ -1,0 +1,8 @@
+# Pushing resolution further. Expect diminishing returns against a steep
+# increase in step time -- worth measuring rather than assuming.
+extends: base
+name: finetune_1280
+imgsz: 1280
+batch: 2
+epochs: 50
+notes: "Upper end of the resolution sweep."

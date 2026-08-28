@@ -1,0 +1,11 @@
+# The naive run: COCO-pretrained YOLO11s at the stock 640 px.
+#
+# This is the control. It exists to be beaten, and to make the size argument
+# concrete -- a 1400x1080 frame is downscaled 2.2x here, which pushes most
+# VisDrone objects below the detector's effective resolution.
+extends: base
+name: baseline_640
+imgsz: 640
+batch: 8
+epochs: 50
+notes: "Control run at stock resolution."
