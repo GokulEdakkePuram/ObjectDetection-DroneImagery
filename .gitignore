@@ -1,0 +1,26 @@
+# Datasets and model artifacts are large and reproducible; never commit them.
+data/
+runs/
+weights/
+*.pt
+*.onnx
+*.mlpackage/
+*.torchscript
+
+# Reports are generated, but the committed snapshots under docs/results/ are not.
+reports/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

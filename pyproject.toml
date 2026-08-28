@@ -1,0 +1,43 @@
+[project]
+name = "aerialdet"
+version = "0.1.0"
+description = "Fine-tuning YOLO for small-object detection in aerial/drone imagery (VisDrone2019-DET)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Gokul Edakke Puram" }]
+keywords = ["object-detection", "yolo", "visdrone", "small-object-detection", "computer-vision"]
+
+dependencies = [
+    "pyyaml>=6.0.3",
+    "torch>=2.13.0",
+    "torchvision>=0.28.0",
+    "ultralytics>=8.4.131",
+    "numpy>=2.0",
+    "matplotlib>=3.9",
+    "pillow>=11.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.9",
+]
+
+[project.scripts]
+aerialdet = "aerialdet.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.11.26,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
