@@ -44,10 +44,66 @@ before committing rental hours:
 uv run aerialdet probe baseline_640 finetune_960 finetune_1280
 ```
 
-This runs a few epochs on 5% of the data and projects the full schedule,
+This trains briefly on a fraction of the data and projects the full schedule,
 reporting peak memory on CUDA. An OOM or an unwelcome time estimate then costs
-four minutes instead of three hours. The projection uses the *fastest* epoch
-observed, because the first one always carries label caching and warmup.
+a few minutes instead of three hours.
+
+On the rented 4090 it confirmed the `cuda24` profile holds across the sweep:
+
+| config | peak VRAM | headroom on 24 GB |
+| --- | ---: | ---: |
+| `baseline_640` | 3.0 GB | 21 GB |
+| `finetune_960` | 7.1 GB | 17 GB |
+| `finetune_1280` | 13.7 GB | 10 GB |
+
+Peak memory tracks the pixel ratio 1 : 2.25 : 4 almost exactly — the sanity
+check that the measurement means what it claims.
+
+## Calibrating honestly
+
+The first version of `probe` timed one short run and divided by the fraction
+of data it used. That produced this, on the 4090:
+
+```
+baseline_640   projected: 2.3 min/epoch
+finetune_960   projected: 1.8 min/epoch     <- faster at 2.25x the pixels?
+finetune_1280  projected: 2.6 min/epoch
+```
+
+`finetune_960` cannot be faster than `baseline_640` at the same batch size and
+more than twice the pixels. The numbers were wrong, and wrong in the most
+dangerous way: plausible enough to write down.
+
+The bug is an assumption in the arithmetic — that epoch time is proportional
+to dataset size. It is not:
+
+```
+epoch_seconds = overhead + rate * n_images
+```
+
+`overhead` is dataloader spin-up, cuDNN autotuning and epoch teardown, and it
+does not shrink with the data. Dividing by `fraction` scales it up too, so at
+`fraction=0.05` the estimate carries **twenty times** the real overhead:
+
+```
+projection - truth = (1/fraction - 1) * overhead = 19 * overhead
+```
+
+At 5% of VisDrone with batch 8 an epoch is only ~40 steps, which on a 4090 is
+a couple of seconds of actual compute against several seconds of fixed cost.
+Overhead dominated the measurement, so the differences between configs were
+noise, and the ranking was meaningless.
+
+The fix is to measure at **two** fractions and solve for both terms, then
+extrapolate with the rate alone. The extra run costs a couple of minutes and
+is the difference between an estimate and a guess. `_fit` also refuses to
+extrapolate from a non-positive fitted rate — two runs lost in the noise
+should raise, not return a confident wrong number.
+
+The lesson generalises past this repo: an extrapolation is only as good as the
+model behind it, and *dividing by a fraction* is a model. It is worth stating
+the model out loud, because this one is wrong in a way that survives a glance
+at the output.
 
 ## Choosing a box
 

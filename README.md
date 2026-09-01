@@ -23,8 +23,29 @@ with the reasoning written down in [`docs/`](docs/).
 | `finetune_1280` | 1280 | _pending_ | | |
 | `finetune_960` + tiled inference | 640/tile | _pending_ | | |
 
-Hardware: Apple M2 Pro (16 GB, MPS) for development; rented 24 GB CUDA for
-training runs. The profile that produced each result is recorded alongside it.
+Hardware: Apple M2 Pro (16 GB, MPS) for development; a rented RTX 4090
+(24 GB, CUDA 13) for training. The profile that produced each result is
+recorded alongside it.
+
+### Memory headroom, measured on the 4090
+
+The `cuda24` profile's constant `batch: 8` was an estimate. `aerialdet probe`
+confirms it holds across the whole sweep, which is what makes the resolution
+ablation single-variable:
+
+| config | imgsz | batch | peak VRAM | headroom on 24 GB |
+| --- | ---: | ---: | ---: | ---: |
+| `baseline_640` | 640 | 8 | 3.0 GB | 21 GB |
+| `finetune_960` | 960 | 8 | 7.1 GB | 17 GB |
+| `finetune_1280` | 1280 | 8 | 13.7 GB | 10 GB |
+
+Peak memory tracks the pixel ratio (1 : 2.25 : 4) almost exactly, which is the
+sanity check that the measurement means what it claims to.
+
+The full sweep runs in hours rather than the ~5 days the same work would take
+on the laptop. Precise per-epoch timings are not published here yet: the first
+probe used too small a fraction for the numbers to be trustworthy — see
+[docs/06](docs/06-running-on-rented-gpus.md#calibrating-honestly).
 
 ## The argument in one table
 
