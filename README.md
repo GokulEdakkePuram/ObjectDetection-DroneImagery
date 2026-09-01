@@ -101,6 +101,7 @@ uv run aerialdet train finetune_960 --profile cuda24 --track wandb
 uv run aerialdet probe finetune_960          # cost a run before starting it
 uv run aerialdet eval runs/train/finetune_960/weights/best.pt --imgsz 960
 uv run aerialdet tiled-predict <weights> <image.jpg> --tile 640 --overlap 0.2
+uv run aerialdet tiled-eval <weights>          # does tiling actually help?
 uv run aerialdet export <weights> --format onnx
 ```
 
@@ -117,6 +118,7 @@ src/aerialdet/
   probe.py        short calibration run that projects the full schedule
   evaluate.py     validation and the cross-run comparison table
   tiling.py       overlapping sliced inference + class-aware NMS merge
+  tiled_eval.py   scores tiled vs whole-frame through the same metric code
   tracking.py     W&B / MLflow wiring
   export.py       ONNX / CoreML / TorchScript export
 scripts/          provisioning for a freshly rented GPU box

@@ -69,14 +69,39 @@ uv run aerialdet tiled-predict runs/train/finetune_960/weights/best.pt \
     data/VisDrone/images/val/<some>.jpg --tile 640 --overlap 0.2
 ```
 
+## Measuring it
+
+```bash
+uv run aerialdet tiled-eval runs/train/finetune_960/weights/best.pt
+```
+
+This scores both modes over the same images and reports mAP next to
+latency. Both go through Ultralytics' own `match_predictions` and
+`DetMetrics` — scoring tiled predictions with a hand-rolled metric would
+confound *what* is being measured with *how*, and the point is to compare
+the two modes, not two metric implementations. As a side effect the numbers
+are comparable to `aerialdet eval`.
+
+Both modes also run at `conf=0.001`, the threshold Ultralytics validates at
+([doc 04](04-reading-the-metrics.md)). Using the prediction default of 0.25
+would truncate the low-confidence tail that the recall end of the PR curve
+depends on, and it would truncate it differently for the two modes.
+
 ## Results
 
-> Compare whole-frame vs tiled inference with the *same* checkpoint. Report
-> mAP50-95 and latency per frame for both. The honest framing is a
-> accuracy-per-millisecond curve, not a single number.
+> Pending a properly trained checkpoint. An early check on 12 val images with
+> a weakly-trained `yolo11s` gave **+45% mAP50-95 for 1.5x the latency** —
+> enough to show the machinery works and that the effect points the right way,
+> but far too few images and too weak a model to quote as a result.
 
-| mode | tiles/frame | mAP50-95 | ms/frame |
-| --- | ---: | ---: | ---: |
-| whole frame @960 | 1 | | |
-| tiled 640 / 0.2 | 6 | | |
-| tiled 512 / 0.3 | | | |
+| mode | tiles/frame | mAP50-95 | mAP50 | ms/frame |
+| --- | ---: | ---: | ---: | ---: |
+| whole frame @960 | 1 | | | |
+| tiled 640 / 0.2 | 6 | | | |
+| tiled 512 / 0.3 | 12 | | | |
+
+The number worth reporting is not "tiling wins" but the exchange rate: how
+much mAP per millisecond, and whether the gain concentrates in the smallest
+classes (`pedestrian`, `people`, `motor`) as the argument in
+[doc 01](01-why-small-objects-are-hard.md) predicts. If tiling helps `bus`
+as much as `pedestrian`, the stated mechanism is wrong.
