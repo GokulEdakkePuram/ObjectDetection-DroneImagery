@@ -1,0 +1,10 @@
+# 24 GB cards: RTX 3090, 4090, A5000. The common rental tier.
+# batch=8 is chosen to hold at 1280 (roughly 4x the activations of 640) so
+# that one value works across the whole sweep. Verify with `aerialdet probe`
+# before committing to a long run.
+batch: 8
+workers: 8
+device: "0"
+train_args:
+  amp: true
+  cache: ram

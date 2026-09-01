@@ -1,0 +1,11 @@
+# Apple Silicon. The GPU shares system RAM, so a 16 GB machine has perhaps
+# 8-10 GB usable before the OS starts swapping. batch=2 is the largest value
+# that holds at 1280, and keeping it constant across the sweep is what makes
+# the resolution ablation clean.
+batch: 2
+workers: 8
+device: mps
+train_args:
+  # AMP is a no-op on MPS in this torch version, and enabling it only adds
+  # a startup check that can fail.
+  amp: false

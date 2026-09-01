@@ -34,6 +34,7 @@ class ExperimentConfig:
     patience: int = 20
     workers: int = 8
     notes: str = ""
+    profile: str = ""
     # Anything Ultralytics accepts (lr0, mosaic, scale, freeze, ...) passes
     # through untouched. Keeping it in one place means our dataclass never has
     # to chase the upstream hyperparameter list.
@@ -112,9 +113,47 @@ def _load_raw(name_or_path: str | Path, _depth: int = 0) -> dict[str, Any]:
     return _deep_merge(_load_raw(parent_name, _depth + 1), raw)
 
 
-def load_config(name_or_path: str | Path) -> ExperimentConfig:
-    """Load and validate an experiment config by name or path."""
+PROFILE_KEYS = {"batch", "workers", "device", "train_args"}
+
+
+def load_profile(name: str) -> dict[str, Any]:
+    """Load a hardware profile from ``configs/profiles/``.
+
+    A profile may only set hardware-dependent knobs. Rejecting anything else
+    keeps machine details from silently changing an experiment: if a profile
+    could set ``epochs`` or ``imgsz``, two runs labelled the same could differ.
+    """
+    path = CONFIG_DIR / "profiles" / f"{Path(name).stem}.yaml"
+    if not path.exists():
+        available = sorted(p.stem for p in (CONFIG_DIR / "profiles").glob("*.yaml"))
+        raise FileNotFoundError(f"No profile named {name!r}. Available: {available}")
+
+    raw = yaml.safe_load(path.read_text()) or {}
+    unknown = set(raw) - PROFILE_KEYS
+    if unknown:
+        raise ValueError(
+            f"Profile {name!r} sets {sorted(unknown)}, which are not hardware settings. "
+            f"A profile may only set {sorted(PROFILE_KEYS)}."
+        )
+    return raw
+
+
+def load_config(name_or_path: str | Path, profile: str | None = None) -> ExperimentConfig:
+    """Load and validate an experiment config, optionally overlaid with a profile.
+
+    Precedence is base -> experiment -> profile. The profile wins because it
+    describes what the machine can actually hold; an experiment asking for a
+    batch that does not fit is not a preference worth honouring.
+    """
     raw = _load_raw(name_or_path)
+
+    if profile == "auto":
+        from .hardware import auto_profile
+
+        profile = auto_profile()
+    if profile:
+        raw = _deep_merge(raw, load_profile(profile))
+        raw["profile"] = profile
 
     known = {f.name for f in fields(ExperimentConfig)}
     unknown = set(raw) - known

@@ -1,0 +1,7 @@
+# 48 GB+ cards: A6000, L40S, A100. Headroom for a larger constant batch.
+batch: 16
+workers: 12
+device: "0"
+train_args:
+  amp: true
+  cache: ram
