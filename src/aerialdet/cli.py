@@ -98,6 +98,23 @@ def _cmd_tiled(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_tiled_eval(args: argparse.Namespace) -> int:
+    from .tiled_eval import compare
+
+    compare(
+        args.weights,
+        data=args.data,
+        split=args.split,
+        limit=args.limit,
+        imgsz=args.imgsz,
+        tile=args.tile,
+        overlap=args.overlap,
+        conf=args.conf,
+        device=args.device,
+    )
+    return 0
+
+
 def _cmd_export(args: argparse.Namespace) -> int:
     from .export import export
 
@@ -165,6 +182,18 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--iou", type=float, default=0.5)
     p.add_argument("--device", default="auto")
     p.set_defaults(func=_cmd_tiled)
+
+    p = sub.add_parser("tiled-eval", help="score whole-frame vs tiled inference on the same images")
+    p.add_argument("weights")
+    p.add_argument("--data", default="VisDrone.yaml")
+    p.add_argument("--split", default="val")
+    p.add_argument("--limit", type=int, default=None, help="evaluate only the first N images")
+    p.add_argument("--imgsz", type=int, default=960, help="input size for whole-frame mode")
+    p.add_argument("--tile", type=int, default=640)
+    p.add_argument("--overlap", type=float, default=0.2)
+    p.add_argument("--conf", type=float, default=0.001)
+    p.add_argument("--device", default="auto")
+    p.set_defaults(func=_cmd_tiled_eval)
 
     p = sub.add_parser("export", help="export a checkpoint for deployment")
     p.add_argument("weights")
