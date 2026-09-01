@@ -66,3 +66,46 @@ def test_auto_profile_is_conservative_at_boundaries():
     three hours into a rented run costs more than unused memory."""
     assert auto_profile(Hardware("0", "card", 19.9)) == CUDA_SMALL
     assert auto_profile(Hardware("0", "card", 39.9)) == CUDA_MEDIUM
+
+
+class TestProbeFit:
+    """The projection maths, which is where the first probe went wrong.
+
+    Timing a run on 5% of the data and dividing by 0.05 assumes epoch time is
+    proportional to dataset size. It is not -- there is a fixed per-epoch
+    overhead, and that naive scaling multiplies it by twenty.
+    """
+
+    def test_recovers_known_overhead_and_rate(self):
+        from aerialdet.probe import _fit
+
+        # Ground truth: 4s overhead, 10ms per image.
+        overhead, rate = _fit([(323, 4.0 + 0.010 * 323), (970, 4.0 + 0.010 * 970)])
+
+        assert overhead == pytest.approx(4.0, abs=1e-6)
+        assert rate == pytest.approx(0.010, abs=1e-9)
+
+    def test_naive_scaling_would_have_overestimated(self):
+        """Reproduces the real 4090 measurement: 6.9s/epoch at 5%."""
+        from aerialdet.probe import _fit
+
+        overhead, rate = _fit([(323, 6.9), (970, 6.9 + 0.006 * 647)])
+        fitted_full = overhead + rate * 6471
+        naive_full = 6.9 / 0.05
+
+        assert naive_full > fitted_full
+        # The error is (1/fraction - 1) x overhead -- 19x here, not a rounding issue.
+        assert naive_full - fitted_full == pytest.approx(19 * overhead, rel=0.01)
+
+    def test_indistinguishable_runs_raise_instead_of_extrapolating(self):
+        """Two runs lost in the noise must not yield a confident wrong number."""
+        from aerialdet.probe import _fit
+
+        with pytest.raises(RuntimeError, match="too short to measure"):
+            _fit([(323, 7.0), (970, 6.8)])
+
+    def test_identical_fractions_rejected(self):
+        from aerialdet.probe import _fit
+
+        with pytest.raises(ValueError, match="must differ"):
+            _fit([(323, 7.0), (323, 7.2)])

@@ -1,13 +1,25 @@
 """Short calibration run before a long one.
 
 Renting a GPU makes a wrong batch size expensive: an OOM or a 30-hour estimate
-is much cheaper to discover in four minutes than three hours in. A probe runs
-a handful of epochs on a fraction of the data, measures the steady-state epoch
-time, and extrapolates.
+is much cheaper to discover in four minutes than three hours in.
 
-The first epoch is always slower -- label caching, warmup, autobatch probing --
-so the estimate uses the *fastest* epoch observed, which is the closest thing
-to steady state a short run can give.
+The naive way to do this -- time one short run and divide by the fraction of
+data it used -- is wrong, and wrong in a way that looks plausible. Epoch time
+is not proportional to dataset size:
+
+    epoch_seconds = overhead + rate * n_images
+
+``overhead`` is dataloader spin-up, cuDNN autotuning and epoch teardown, and it
+does not shrink with the data. Dividing a small run's time by ``fraction``
+scales that overhead up along with everything else, so at ``fraction=0.05`` the
+estimate carries **twenty times** the real overhead. On a fast GPU, where a
+5% epoch is only ~40 steps, overhead dominates the measurement entirely and
+the resulting numbers can even rank a larger ``imgsz`` as faster than a
+smaller one.
+
+So this measures at two fractions and solves for both terms. The extra run
+costs a couple of minutes and is the difference between an estimate and a
+guess.
 """
 
 from __future__ import annotations
@@ -20,7 +32,7 @@ from typing import Any
 from .config import load_config
 
 DEFAULT_EPOCHS = 3
-DEFAULT_FRACTION = 0.05
+DEFAULT_FRACTIONS = (0.05, 0.15)
 
 
 @dataclass
@@ -31,11 +43,15 @@ class ProbeResult:
     profile: str
     imgsz: int
     batch: int
-    fraction: float
-    epoch_seconds: float
-    full_epoch_seconds: float
+    train_images: int
+    overhead_seconds: float
+    seconds_per_image: float
     target_epochs: int
     peak_memory_gb: float | None
+
+    @property
+    def full_epoch_seconds(self) -> float:
+        return self.overhead_seconds + self.seconds_per_image * self.train_images
 
     @property
     def estimated_hours(self) -> float:
@@ -45,14 +61,20 @@ class ProbeResult:
         mem = f"{self.peak_memory_gb:.1f} GB peak" if self.peak_memory_gb else "peak memory n/a"
         return (
             f"{self.name} [{self.profile or 'no profile'}] imgsz={self.imgsz} batch={self.batch}\n"
-            f"  measured : {self.epoch_seconds:.1f}s/epoch on {self.fraction:.0%} of train\n"
-            f"  projected: {self.full_epoch_seconds / 60:.1f} min/epoch on the full split\n"
+            f"  fitted   : {self.overhead_seconds:.1f}s overhead "
+            f"+ {self.seconds_per_image * 1000:.1f}ms/image\n"
+            f"  projected: {self.full_epoch_seconds / 60:.1f} min/epoch "
+            f"on {self.train_images:,} images\n"
             f"  {self.target_epochs} epochs -> {self.estimated_hours:.1f} h   ({mem})"
         )
 
 
 def _steady_epoch_seconds(results_csv: Path) -> float:
-    """Fastest per-epoch delta, as the best available proxy for steady state."""
+    """Fastest per-epoch delta, as the best available proxy for steady state.
+
+    The first epoch always carries label-cache building and warmup, so a mean
+    would be biased upward by costs the real run pays only once.
+    """
     rows = list(csv.DictReader(results_csv.open()))
     if not rows:
         raise RuntimeError(f"{results_csv} has no rows; the probe run produced no epochs.")
@@ -62,46 +84,85 @@ def _steady_epoch_seconds(results_csv: Path) -> float:
     return min(deltas) if deltas else times[0]
 
 
+def _count_train_images(data: str) -> int:
+    """How many images a full epoch actually iterates over."""
+    from ultralytics.data.utils import check_det_dataset
+
+    from .paths import configure_ultralytics
+
+    configure_ultralytics()
+    train_dir = Path(check_det_dataset(data)["train"])
+    return sum(1 for p in train_dir.iterdir() if p.suffix.lower() in {".jpg", ".jpeg", ".png"})
+
+
+def _fit(points: list[tuple[int, float]]) -> tuple[float, float]:
+    """Solve ``t = overhead + rate * n`` through two or more measurements.
+
+    Returns ``(overhead_seconds, seconds_per_image)``. A non-positive fitted
+    rate means the two runs were indistinguishable through the noise; the
+    caller is told rather than handed a nonsense extrapolation.
+    """
+    (n1, t1), (n2, t2) = points[0], points[-1]
+    if n2 == n1:
+        raise ValueError("Probe fractions must differ to separate overhead from rate.")
+
+    rate = (t2 - t1) / (n2 - n1)
+    if rate <= 0:
+        raise RuntimeError(
+            f"Fitted a non-positive rate ({rate:.6f}s/image) from {t1:.1f}s at {n1} images "
+            f"and {t2:.1f}s at {n2}. The runs were too short to measure through noise -- "
+            f"re-probe with larger --fractions."
+        )
+    return t1 - rate * n1, rate
+
+
 def probe(
     config: str,
     profile: str | None = "auto",
     epochs: int = DEFAULT_EPOCHS,
-    fraction: float = DEFAULT_FRACTION,
+    fractions: tuple[float, ...] = DEFAULT_FRACTIONS,
 ) -> ProbeResult:
-    """Time a short run and project it onto the full training schedule."""
+    """Time short runs at two data fractions and project the full schedule."""
     import torch
 
     from .train import train
 
-    cfg = load_config(config, profile=profile)
-    target_epochs = cfg.epochs
-
-    cfg.name = f"probe_{cfg.name}"
-    cfg.epochs = epochs
-    cfg.patience = 0
-    cfg.train_args = {
-        **cfg.train_args,
-        "fraction": fraction,
-        "plots": False,
-        "val": False,  # validation cost is fixed per epoch; exclude it from the rate
-    }
+    base = load_config(config, profile=profile)
+    target_epochs = base.epochs
+    train_images = _count_train_images(base.data)
 
     if torch.cuda.is_available():
         torch.cuda.reset_peak_memory_stats()
 
-    result = train(cfg)
+    points: list[tuple[int, float]] = []
+    for fraction in fractions:
+        cfg = load_config(config, profile=profile)
+        cfg.name = f"probe_{cfg.name}_{fraction:g}"
+        cfg.epochs = epochs
+        cfg.patience = 0
+        cfg.train_args = {
+            **cfg.train_args,
+            "fraction": fraction,
+            "plots": False,
+            # Validation is a fixed per-epoch cost that does not scale with the
+            # training fraction, so including it would corrupt the fit.
+            "val": False,
+        }
+        result = train(cfg)
+        seconds = _steady_epoch_seconds(Path(result["save_dir"]) / "results.csv")
+        points.append((int(train_images * fraction), seconds))
 
-    epoch_seconds = _steady_epoch_seconds(Path(result["save_dir"]) / "results.csv")
+    overhead, rate = _fit(points)
     peak = torch.cuda.max_memory_allocated() / 1024**3 if torch.cuda.is_available() else None
 
     return ProbeResult(
         name=config,
-        profile=cfg.profile,
-        imgsz=cfg.imgsz,
-        batch=cfg.batch,
-        fraction=fraction,
-        epoch_seconds=epoch_seconds,
-        full_epoch_seconds=epoch_seconds / fraction,
+        profile=base.profile,
+        imgsz=base.imgsz,
+        batch=base.batch,
+        train_images=train_images,
+        overhead_seconds=overhead,
+        seconds_per_image=rate,
         target_epochs=target_epochs,
         peak_memory_gb=peak,
     )
@@ -111,11 +172,10 @@ def probe_all(configs: list[str], **kwargs: Any) -> list[ProbeResult]:
     """Probe several configs and report what the whole sweep would cost."""
     results = [probe(c, **kwargs) for c in configs]
 
-    total = sum(r.estimated_hours for r in results)
-    print("\n" + "=" * 64)
+    print("\n" + "=" * 68)
     for r in results:
         print(r.summary())
-    print("-" * 64)
-    print(f"  full sweep: {total:.1f} h")
-    print("=" * 64)
+    print("-" * 68)
+    print(f"  full sweep: {sum(r.estimated_hours for r in results):.1f} h")
+    print("=" * 68)
     return results

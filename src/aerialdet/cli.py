@@ -58,7 +58,9 @@ def _cmd_train(args: argparse.Namespace) -> int:
 def _cmd_probe(args: argparse.Namespace) -> int:
     from .probe import probe_all
 
-    probe_all(args.configs, profile=args.profile, epochs=args.epochs, fraction=args.fraction)
+    probe_all(
+        args.configs, profile=args.profile, epochs=args.epochs, fractions=tuple(args.fractions)
+    )
     return 0
 
 
@@ -135,7 +137,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("configs", nargs="+", help="config name(s) to calibrate")
     p.add_argument("--profile", default="auto")
     p.add_argument("--epochs", type=int, default=3)
-    p.add_argument("--fraction", type=float, default=0.05)
+    p.add_argument(
+        "--fractions",
+        type=float,
+        nargs=2,
+        default=[0.05, 0.15],
+        metavar=("SMALL", "LARGE"),
+        help="two data fractions; the gap between them separates fixed "
+        "per-epoch overhead from the per-image rate",
+    )
     p.set_defaults(func=_cmd_probe)
 
     p = sub.add_parser("eval", help="validate one or more checkpoints")
