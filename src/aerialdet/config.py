@@ -35,6 +35,7 @@ class ExperimentConfig:
     workers: int = 8
     notes: str = ""
     profile: str = ""
+    tracker: str = "none"
     # Anything Ultralytics accepts (lr0, mosaic, scale, freeze, ...) passes
     # through untouched. Keeping it in one place means our dataclass never has
     # to chase the upstream hyperparameter list.

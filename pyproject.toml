@@ -24,6 +24,8 @@ dev = [
     "pytest>=8.0",
     "ruff>=0.9",
 ]
+wandb = ["wandb>=0.18"]
+mlflow = ["mlflow>=2.16"]
 
 [project.scripts]
 aerialdet = "aerialdet.cli:main"
