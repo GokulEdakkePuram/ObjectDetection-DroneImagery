@@ -1,0 +1,12 @@
+# Model-size ablation, upper arm. yolo11m is ~2x the parameters of yolo11s
+# and ~3x the FLOPs.
+#
+# Because the pipeline is input-bound rather than GPU-bound at these sizes
+# (docs/06), the wall-clock cost may be far below 3x -- which is itself worth
+# measuring rather than assuming. Probe before queueing.
+extends: base
+name: size_m_960
+model: yolo11m.pt
+imgsz: 960
+epochs: 50
+notes: "Capacity ablation at fixed 960 px; compare against finetune_960 (yolo11s)."

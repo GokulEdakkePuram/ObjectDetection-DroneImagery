@@ -1,0 +1,13 @@
+# Model-size ablation, second arm. Resolution fixed at 960 so the only
+# variable is capacity -- the same discipline as the resolution sweep, where
+# only imgsz moved.
+#
+# The deployment question this answers: drone hardware is power- and
+# thermally constrained, so "how much accuracy does the smallest model give
+# up?" is more useful than "what is the best possible mAP?".
+extends: base
+name: size_n_960
+model: yolo11n.pt
+imgsz: 960
+epochs: 50
+notes: "Capacity ablation at fixed 960 px; compare against finetune_960 (yolo11s)."
