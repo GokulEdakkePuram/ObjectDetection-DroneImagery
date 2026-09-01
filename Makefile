@@ -4,7 +4,9 @@ help:
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
 setup:  ## install dependencies into .venv
-	uv sync --extra dev
+	# Both extras together: uv sync prunes anything not named, so syncing one
+	# extra alone silently uninstalls the other.
+	uv sync --extra dev --extra wandb
 
 data:  ## download and convert VisDrone (~2 GB)
 	uv run aerialdet download
