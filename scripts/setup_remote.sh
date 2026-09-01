@@ -19,6 +19,30 @@ if ! command -v nvidia-smi >/dev/null 2>&1; then
 fi
 nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
 
+echo "==> Checking the driver is new enough"
+# The pinned torch wheels bundle a CUDA 13 runtime (nvidia-cudnn-cu13, nccl-cu13),
+# which needs a host driver that supports CUDA 13.0 or later. A 12.x driver fails
+# with "NVIDIA driver on your system is too old" -- but only after uv sync has
+# spent five paid minutes downloading 5 GB, so check it up front.
+REQUIRED_CUDA_MAJOR=13
+HOST_CUDA=$(nvidia-smi | sed -n 's/.*CUDA Version: *\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -1)
+if [ -z "${HOST_CUDA}" ]; then
+    echo "    WARNING: could not read the driver's CUDA version; continuing anyway." >&2
+else
+    echo "    driver supports CUDA ${HOST_CUDA}"
+    if [ "${HOST_CUDA%%.*}" -lt "${REQUIRED_CUDA_MAJOR}" ]; then
+        cat >&2 <<EOF
+    This host supports CUDA ${HOST_CUDA}, but the locked torch build needs
+    CUDA ${REQUIRED_CUDA_MAJOR}.0 or newer.
+
+    Destroy this instance and rent one filtered to CUDA ${REQUIRED_CUDA_MAJOR}.0+.
+    That is cheaper than the time it takes to work around it, and keeps the
+    environment identical to the one in uv.lock.
+EOF
+        exit 1
+    fi
+fi
+
 echo "==> Checking disk space"
 # The dataset is ~3.7 GB unpacked, the CUDA-enabled venv is ~8 GB, and runs
 # and checkpoints grow from there. Rentals default to 10 GB, which is not

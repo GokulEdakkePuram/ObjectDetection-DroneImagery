@@ -58,7 +58,14 @@ dataset survives between sessions.
 A 24 GB card (RTX 3090/4090, A5000) is the right tier — `yolo11s` at 1280 does
 not need more, and 48 GB mainly buys a larger batch.
 
-Two things that waste rentals:
+**Filter for CUDA 13.0 or newer.** The pinned torch wheels bundle a CUDA 13
+runtime, so a host with a 12.x driver fails with *"NVIDIA driver on your
+system is too old"* — after `uv sync` has already spent five paid minutes
+pulling 5 GB. Plenty of rental hosts still run 12.x drivers, so this is worth
+setting as a search filter rather than discovering on the box.
+`setup_remote.sh` now checks it up front and exits in seconds.
+
+Three things that waste rentals:
 
 - **Set disk to 40 GB.** The 10 GB default is not enough: ~3.7 GB dataset,
   ~8 GB for the CUDA venv, plus checkpoints. `setup_remote.sh` warns, but by
@@ -66,6 +73,8 @@ Two things that waste rentals:
 - **Prefer on-demand over interruptible** until resume-from-checkpoint is
   wired up. Interruptible is roughly half price, but losing a two-hour run to
   reclaim $0.30 is a bad trade.
+- **Check the driver before anything else.** `nvidia-smi` reports the CUDA
+  version the host supports; if it is below 13.0, destroy and re-rent.
 
 ## Provisioning
 
