@@ -43,6 +43,23 @@ make finetune
 make eval        # writes reports/results.md
 ```
 
+## What it costs
+
+Measured on a rented RTX 4090 with `aerialdet probe` — the batch-size confound
+is gone, since `batch: 8` holds at every resolution on a 24 GB card:
+
+| config | per epoch | 50 epochs | peak VRAM |
+| --- | ---: | ---: | ---: |
+| `baseline_640` | 1.5 min | 1.2 h | 3.3 GB |
+| `finetune_960` | 1.6 min | 1.3 h | 8.1 GB |
+| `finetune_1280` | 2.1 min | 1.8 h | 13.6 GB |
+
+Note how little resolution costs here: 4x the pixels for 1.42x the time. The
+GPU is not the bottleneck at these sizes ([doc 06](06-running-on-rented-gpus.md)),
+so the usual accuracy-versus-cost tradeoff is much flatter than expected. Any
+conclusion below should be read with that in mind — a result that says "1280 is
+worth it" is a weaker claim on hardware where 1280 is nearly free.
+
 ## Results
 
 > Fill in from `reports/results.md` once both runs finish. Record wall-clock

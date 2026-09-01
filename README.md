@@ -27,25 +27,37 @@ Hardware: Apple M2 Pro (16 GB, MPS) for development; a rented RTX 4090
 (24 GB, CUDA 13) for training. The profile that produced each result is
 recorded alongside it.
 
-### Memory headroom, measured on the 4090
+### Compute budget, measured on the 4090
 
 The `cuda24` profile's constant `batch: 8` was an estimate. `aerialdet probe`
-confirms it holds across the whole sweep, which is what makes the resolution
+confirms it holds across the whole sweep — which is what makes the resolution
 ablation single-variable:
 
-| config | imgsz | batch | peak VRAM | headroom on 24 GB |
-| --- | ---: | ---: | ---: | ---: |
-| `baseline_640` | 640 | 8 | 3.0 GB | 21 GB |
-| `finetune_960` | 960 | 8 | 7.1 GB | 17 GB |
-| `finetune_1280` | 1280 | 8 | 13.7 GB | 10 GB |
+| config | imgsz | batch | per image | per epoch | 50 epochs | peak VRAM |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `baseline_640` | 640 | 8 | 13.7 ms | 1.5 min | 1.2 h | 3.3 GB |
+| `finetune_960` | 960 | 8 | 14.5 ms | 1.6 min | 1.3 h | 8.1 GB |
+| `finetune_1280` | 1280 | 8 | 19.5 ms | 2.1 min | 1.8 h | 13.6 GB |
+| **full sweep** | | | | | **4.3 h** | |
 
-Peak memory tracks the pixel ratio (1 : 2.25 : 4) almost exactly, which is the
-sanity check that the measurement means what it claims to.
+Against ~5 days for the same work on the laptop, at a rental cost of a few
+dollars.
 
-The full sweep runs in hours rather than the ~5 days the same work would take
-on the laptop. Precise per-epoch timings are not published here yet: the first
-probe used too small a fraction for the numbers to be trustworthy — see
-[docs/06](docs/06-running-on-rented-gpus.md#calibrating-honestly).
+**Resolution is nearly free here, and that is a finding rather than a
+footnote.** Normalised against 640:
+
+| imgsz | pixels | VRAM | time |
+| ---: | ---: | ---: | ---: |
+| 640 | 1.00× | 1.00× | 1.00× |
+| 960 | 2.25× | 2.45× | 1.06× |
+| 1280 | 4.00× | 4.12× | **1.42×** |
+
+Memory tracks pixel count almost exactly, so the model really is doing 4× the
+work at 1280. Time does not follow, which means the GPU is not the constraint
+— the input pipeline is, and mosaic augmentation on CPU is the obvious
+suspect. The practical consequence: if higher resolution wins on mAP, the
+usual reason to compromise (it costs too much) does not apply on this
+hardware.
 
 ## The argument in one table
 

@@ -48,16 +48,44 @@ This trains briefly on a fraction of the data and projects the full schedule,
 reporting peak memory on CUDA. An OOM or an unwelcome time estimate then costs
 a few minutes instead of three hours.
 
-On the rented 4090 it confirmed the `cuda24` profile holds across the sweep:
+On the rented 4090, with the corrected two-fraction method:
 
-| config | peak VRAM | headroom on 24 GB |
-| --- | ---: | ---: |
-| `baseline_640` | 3.0 GB | 21 GB |
-| `finetune_960` | 7.1 GB | 17 GB |
-| `finetune_1280` | 13.7 GB | 10 GB |
+| config | fitted rate | per epoch | 50 epochs | peak VRAM |
+| --- | ---: | ---: | ---: | ---: |
+| `baseline_640` | 13.7 ms/img | 1.5 min | 1.2 h | 3.3 GB |
+| `finetune_960` | 14.5 ms/img | 1.6 min | 1.3 h | 8.1 GB |
+| `finetune_1280` | 19.5 ms/img | 2.1 min | 1.8 h | 13.6 GB |
 
-Peak memory tracks the pixel ratio 1 : 2.25 : 4 almost exactly — the sanity
-check that the measurement means what it claims.
+Fitted overhead came out at 0.6-1.2 s/epoch — small, and the reason the naive
+method went so wrong at 5% of the data.
+
+`batch: 8` holds at 1280 with 10 GB to spare, so the constant-batch ablation
+is safe on this card.
+
+### What the scaling says about the bottleneck
+
+Normalised against 640:
+
+| imgsz | pixels | VRAM | time |
+| ---: | ---: | ---: | ---: |
+| 640 | 1.00x | 1.00x | 1.00x |
+| 960 | 2.25x | 2.45x | 1.06x |
+| 1280 | 4.00x | 4.12x | 1.42x |
+
+Memory follows pixel count almost exactly, which confirms the model really is
+processing 4x the data at 1280. Time does not: quadrupling the pixels costs
+42% more wall clock, not 300%.
+
+A GPU-bound pipeline could not do that. The 4090 is finishing each batch and
+waiting, so the constraint is upstream — decoding and augmenting images on
+CPU, with mosaic (which composites four source images per sample) the obvious
+suspect. Two cheap ways to test it: watch `nvidia-smi` during training and
+look for utilisation well under 100%, or raise `workers` in the profile and
+see whether the 640 rate improves.
+
+This matters for reading the ablation. The usual argument against high
+resolution is that it costs too much; on this hardware it costs 42%. If 1280
+wins on mAP, there is little reason to compromise.
 
 ## Calibrating honestly
 
