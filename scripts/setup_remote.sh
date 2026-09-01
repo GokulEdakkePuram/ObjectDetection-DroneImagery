@@ -79,18 +79,30 @@ print(f'    {p.name}, {p.total_memory / 1024**3:.0f} GB, torch {torch.__version_
 echo "==> Downloading VisDrone (~2 GB)"
 uv run aerialdet download
 
+if [ -n "${WANDB_API_KEY:-}" ]; then
+    echo "==> WANDB_API_KEY is set; W&B needs no interactive login"
+else
+    echo "==> WANDB_API_KEY is not set"
+    echo "    Either export it before training, or run: uv run wandb login"
+fi
+
 cat <<'NEXT'
 
 Ready. Suggested next steps:
 
-  uv run aerialdet probe baseline_640 finetune_960 finetune_1280
+  uv run aerialdet probe baseline_640 finetune_960 finetune_1280 --fractions 0.1 0.3
       Calibrate before committing rental hours. Confirms the profile's batch
-      size fits and projects how long the real runs take.
+      size fits and projects how long the real runs take. Two fractions, so
+      fixed per-epoch overhead is separated from the per-image rate.
 
-  wandb login
-      Only needed once per instance, if tracking to W&B.
+  export WANDB_API_KEY=<key from wandb.ai/authorize>
+      Preferred over an interactive login on an instance you will destroy.
+      Every CLI here lives in the project venv, so the interactive form is
+      `uv run wandb login` -- a bare `wandb` is not on PATH.
 
+  tmux new -s train
   uv run aerialdet train finetune_960 --track wandb
-      The profile is auto-detected from the GPU.
+      Inside tmux, so a dropped SSH connection does not kill the run.
+      The hardware profile is auto-detected from the GPU.
 
 NEXT
