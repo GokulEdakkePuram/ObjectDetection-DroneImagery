@@ -27,11 +27,21 @@ TRACKERS = {
 DEFAULT_PROJECT = "aerialdet"
 
 
-def configure(tracker: str = "none", project: str = DEFAULT_PROJECT, run_name: str = "") -> str:
+def configure(
+    tracker: str = "none",
+    project: str = DEFAULT_PROJECT,
+    run_name: str = "",
+    entity: str = "",
+) -> str:
     """Enable one tracker and disable the rest. Returns the active tracker.
 
     Raises if the requested tracker is not installed, rather than letting a
     long run finish with nothing recorded.
+
+    ``entity`` selects which W&B account or team owns the run. It matters when
+    an account's default entity is an organisation: a project there inherits
+    the org's visibility rules, so a run you intended to link publicly may not
+    be yours to publish. Set it explicitly, or via ``WANDB_ENTITY``.
     """
     from ultralytics.utils import SETTINGS
 
@@ -59,6 +69,8 @@ def configure(tracker: str = "none", project: str = DEFAULT_PROJECT, run_name: s
 
     if tracker == "wandb":
         os.environ.setdefault("WANDB_PROJECT", project)
+        if entity:
+            os.environ.setdefault("WANDB_ENTITY", entity)
         if run_name:
             os.environ.setdefault("WANDB_NAME", run_name)
     elif tracker == "mlflow":
