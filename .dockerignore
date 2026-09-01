@@ -1,0 +1,12 @@
+# Never send these to the build context -- data/ alone is ~4 GB.
+data/
+runs/
+weights/
+reports/
+.venv/
+.git/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.pt
+*.onnx
