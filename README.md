@@ -23,7 +23,8 @@ with the reasoning written down in [`docs/`](docs/).
 | `finetune_1280` | 1280 | _pending_ | | |
 | `finetune_960` + tiled inference | 640/tile | _pending_ | | |
 
-Hardware: Apple M2 Pro, 16 GB, MPS backend.
+Hardware: Apple M2 Pro (16 GB, MPS) for development; rented 24 GB CUDA for
+training runs. The profile that produced each result is recorded alongside it.
 
 ## The argument in one table
 
@@ -51,10 +52,20 @@ make finetune   # the 960 px run
 make eval       # comparison table -> reports/results.md
 ```
 
+On a rented GPU, provision with one command and calibrate before spending
+hours — see [docs/06](docs/06-running-on-rented-gpus.md):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/GokulEdakkePuram/ObjectDetection-DroneImagery/main/scripts/setup_remote.sh | bash
+uv run aerialdet probe baseline_640 finetune_960 finetune_1280
+uv run aerialdet train finetune_960 --track wandb
+```
+
 Everything is also reachable directly:
 
 ```bash
-uv run aerialdet train finetune_960
+uv run aerialdet train finetune_960 --profile cuda24 --track wandb
+uv run aerialdet probe finetune_960          # cost a run before starting it
 uv run aerialdet eval runs/train/finetune_960/weights/best.pt --imgsz 960
 uv run aerialdet tiled-predict <weights> <image.jpg> --tile 640 --overlap 0.2
 uv run aerialdet export <weights> --format onnx
@@ -64,18 +75,31 @@ uv run aerialdet export <weights> --format onnx
 
 ```
 configs/          one YAML per experiment, composed via `extends:`
+  profiles/       what each machine can hold — batch, workers, device, amp
 src/aerialdet/
   config.py       config loading, inheritance, validation
+  hardware.py     accelerator detection and profile selection
   stats.py        dataset profiling — class balance, box-area distribution
   train.py        fine-tuning; writes the resolved config next to the weights
+  probe.py        short calibration run that projects the full schedule
   evaluate.py     validation and the cross-run comparison table
   tiling.py       overlapping sliced inference + class-aware NMS merge
+  tracking.py     W&B / MLflow wiring
   export.py       ONNX / CoreML / TorchScript export
+scripts/          provisioning for a freshly rented GPU box
 docs/             the reasoning, written as it was worked out
-tests/            geometry and config tests (`make test`)
+tests/            geometry, config and profile tests (`make test`)
+Dockerfile        pinned training image
 ```
 
-Three deliberate choices:
+Four deliberate choices:
+
+**Hardware is not part of an experiment.** An experiment config says what to
+train; a profile in `configs/profiles/` says what the machine can hold, and
+`load_profile` rejects any profile that tries to set `epochs` or `imgsz`. The
+payoff is a constant batch size across the resolution sweep — on the laptop
+batch had to shrink as `imgsz` grew, so the comparison was never purely about
+resolution. On one GPU it now is.
 
 **Configs compose.** `finetune_960` inherits from `base.yaml` and overrides two
 lines. An ablation where the configs differ in one place is an experiment; one
@@ -107,6 +131,8 @@ Written as the work was done, not reconstructed afterwards:
   mAP50-95, `max_det` truncation, and how to not oversell a result
 - [05 — Experiment log](docs/05-experiment-log.md) — running journal, with
   expectations recorded before each run
+- [06 — Running on rented GPUs](docs/06-running-on-rented-gpus.md) — hardware
+  profiles, calibrating a run before paying for it, and what wastes a rental
 
 ## Licence
 
