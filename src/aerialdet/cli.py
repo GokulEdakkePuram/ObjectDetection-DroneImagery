@@ -50,8 +50,15 @@ def _cmd_download(args: argparse.Namespace) -> int:
 def _cmd_train(args: argparse.Namespace) -> int:
     from .train import train
 
-    result = train(args.config)
+    result = train(args.config, profile=args.profile, tracker=args.track)
     print(json.dumps(result, indent=2))
+    return 0
+
+
+def _cmd_probe(args: argparse.Namespace) -> int:
+    from .probe import probe_all
+
+    probe_all(args.configs, profile=args.profile, epochs=args.epochs, fraction=args.fraction)
     return 0
 
 
@@ -110,8 +117,26 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=_cmd_profile)
 
     p = sub.add_parser("train", help="fine-tune a model from a config")
-    p.add_argument("config", help="config name (e.g. 'finetune_s') or path")
+    p.add_argument("config", help="config name (e.g. 'finetune_960') or path")
+    p.add_argument(
+        "--profile",
+        default="auto",
+        help="hardware profile: auto (default), mps, cpu, cuda12, cuda24, cuda48",
+    )
+    p.add_argument(
+        "--track",
+        default=None,
+        choices=["wandb", "mlflow", "tensorboard", "none"],
+        help="experiment tracker (default: whatever the config says)",
+    )
     p.set_defaults(func=_cmd_train)
+
+    p = sub.add_parser("probe", help="time a short run and project the full one")
+    p.add_argument("configs", nargs="+", help="config name(s) to calibrate")
+    p.add_argument("--profile", default="auto")
+    p.add_argument("--epochs", type=int, default=3)
+    p.add_argument("--fraction", type=float, default=0.05)
+    p.set_defaults(func=_cmd_probe)
 
     p = sub.add_parser("eval", help="validate one or more checkpoints")
     p.add_argument("weights", nargs="+")
