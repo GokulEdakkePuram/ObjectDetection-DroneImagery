@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -49,23 +50,25 @@ def train(
 
     print(f"[aerialdet] training '{cfg.name}' on {kwargs['device']} ({cfg.model})")
 
-    # Write the resolved config *before* training, not after. Written after, a
-    # failure in any post-training step -- a W&B artifact upload, say -- loses
-    # the traceability record for a run whose weights and metrics are all
-    # perfectly fine. That happened: two 50-epoch runs finished, then raised
-    # during upload, and were left unidentifiable.
-    save_dir = Path(kwargs["project"]) / cfg.name
-    save_dir.mkdir(parents=True, exist_ok=True)
-    (save_dir / "aerialdet_config.json").write_text(json.dumps(asdict(cfg), indent=2))
+    # Record the resolved config before training, so a failure in any
+    # post-training step -- a W&B artifact upload, say -- cannot leave a run
+    # whose weights and metrics are fine but which is unidentifiable.
+    #
+    # It goes to a staging file rather than into the run directory: creating
+    # that directory early makes Ultralytics think the name is taken, so it
+    # silently trains into `<name>2` instead and every downstream path that
+    # expects `<name>` breaks.
+    payload = json.dumps(asdict(cfg), indent=2)
+    staging = RUNS_DIR / ".pending"
+    staging.mkdir(parents=True, exist_ok=True)
+    pending = staging / f"{cfg.name}-{time.strftime('%Y%m%d-%H%M%S')}.json"
+    pending.write_text(payload)
 
     results = model.train(**kwargs)
 
-    # Ultralytics increments the directory if it already existed, so re-record
-    # under wherever the run actually landed.
-    actual = Path(results.save_dir)
-    if actual != save_dir:
-        (actual / "aerialdet_config.json").write_text(json.dumps(asdict(cfg), indent=2))
-    save_dir = actual
+    save_dir = Path(results.save_dir)
+    (save_dir / "aerialdet_config.json").write_text(payload)
+    pending.unlink(missing_ok=True)  # landed safely; no need for the copy
 
     return {
         "name": cfg.name,
