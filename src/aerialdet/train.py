@@ -40,6 +40,10 @@ def train(
     print(f"[aerialdet] tracking: {active}")
 
     model = YOLO(cfg.model)
+    if cfg.pretrained:
+        # Matching layers transfer by shape and name; the rest stay random.
+        print(f"[aerialdet] transferring weights from {cfg.pretrained}")
+        model = model.load(cfg.pretrained)
     kwargs = cfg.to_train_kwargs()
     kwargs.setdefault("project", str(RUNS_DIR / "train"))
 

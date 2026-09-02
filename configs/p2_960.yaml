@@ -1,0 +1,10 @@
+# P2 head at 960 px. Direct comparison against finetune_960: same model
+# family, same resolution, same batch -- the only change is a stride-4
+# detection level added to the stock stride-8/16/32 head.
+extends: base
+name: p2_960
+model: configs/models/yolo11s-p2.yaml
+pretrained: yolo11s.pt
+imgsz: 960
+epochs: 50
+notes: "P2 head vs finetune_960; isolates the extra detection level."

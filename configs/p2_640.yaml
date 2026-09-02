@@ -1,0 +1,16 @@
+# P2 head at 640 px -- the cheap arm, and the more interesting one.
+#
+# A stride-4 map at 640 px is 160x160, exactly the same grid as the stride-8
+# map of a 1280 px model. So p2_640 and finetune_1280 reach the same finest
+# spatial resolution by opposite routes: one adds a detection level, the
+# other adds pixels. The second costs 4x the input area.
+#
+# If they score alike, the stride floor was the whole story and buying it
+# with architecture is far cheaper than buying it with resolution.
+extends: base
+name: p2_640
+model: configs/models/yolo11s-p2.yaml
+pretrained: yolo11s.pt
+imgsz: 640
+epochs: 50
+notes: "Same finest grid as finetune_1280 (160x160) at a quarter the input area."

@@ -25,6 +25,10 @@ class ExperimentConfig:
 
     name: str
     model: str = "yolo11s.pt"
+    # Weights to transfer into a model built from a .yaml. Without this a
+    # custom architecture starts from random init, which would make any
+    # comparison against a pretrained baseline meaningless.
+    pretrained: str = ""
     data: str = "VisDrone.yaml"
     epochs: int = 50
     imgsz: int = 960
