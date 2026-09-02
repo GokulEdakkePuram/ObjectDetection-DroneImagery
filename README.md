@@ -16,12 +16,38 @@ with the reasoning written down in [`docs/`](docs/).
 > below are filled in from `reports/results.md` as runs finish, and the
 > commands that produce them are the ones in this README.
 
-| run | imgsz | mAP50-95 | mAP50 | train time |
-| --- | ---: | ---: | ---: | ---: |
-| `baseline_640` (control) | 640 | _pending_ | | |
-| `finetune_960` | 960 | _pending_ | | |
-| `finetune_1280` | 1280 | _pending_ | | |
-| `finetune_960` + tiled inference | 640/tile | _pending_ | | |
+All five runs: 50 epochs, VisDrone `val`, constant `batch: 8` on one RTX 4090.
+
+**Resolution** (`yolo11s`, only `imgsz` varies):
+
+| run | imgsz | mAP50-95 | mAP50 | vs control | train time |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `baseline_640` (control) | 640 | 0.2211 | 0.3786 | — | 1.2 h |
+| `finetune_960` | 960 | 0.2866 | 0.4737 | **+29.6%** | 1.3 h |
+| `finetune_1280` | 1280 | **0.3246** | 0.5273 | **+46.8%** | 1.8 h |
+
+**Capacity** (960 px, only the model varies):
+
+| run | model | params | mAP50-95 | mAP50 | train time |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `size_n_960` | yolo11n | 2.6 M | 0.2325 | 0.3925 | 1.4 h |
+| `finetune_960` | yolo11s | 9.4 M | 0.2866 | 0.4737 | 1.3 h |
+| `size_m_960` | yolo11m | 20.0 M | **0.3272** | 0.5326 | 1.7 h |
+
+Both axes are monotonic, so the stride-floor argument in
+[docs/01](docs/01-why-small-objects-are-hard.md) survives its first real test.
+
+**The two axes buy almost the same thing.** `yolo11m` at 960 (0.3272) and
+`yolo11s` at 1280 (0.3246) are within 0.8% of each other, for 1.7 h and 1.8 h
+respectively. Spending on resolution and spending on capacity are close to
+interchangeable here — which is not what the small-object argument alone would
+predict, and is the most interesting thing in the table.
+
+> These are `val` numbers, and `best.pt` is selected on `val`, so they are
+> mildly optimistic. `test-dev` is held out for a single final measurement —
+> see [docs/04](docs/04-reading-the-metrics.md).
+
+Tiled inference is not in the table yet; `aerialdet tiled-eval` runs next.
 
 Hardware: Apple M2 Pro (16 GB, MPS) for development; a rented RTX 4090
 (24 GB, CUDA 13) for training. The profile that produced each result is
