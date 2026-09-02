@@ -36,6 +36,33 @@ All five runs: 50 epochs, VisDrone `val`, constant `batch: 8` on one RTX 4090.
 
 Each checkpoint is scored at the resolution it was trained for.
 
+### But a P2 head does not reproduce the effect
+
+A stride-4 detection head at 640 px reaches a 160×160 finest grid — exactly
+what a 1280 px model reaches at stride 8. Same grid, a quarter of the input
+area. If cell density were the mechanism, they should score alike:
+
+| run | imgsz | finest grid | mAP50-95 | peak VRAM |
+| --- | ---: | ---: | ---: | ---: |
+| `baseline_640` | 640 | 80×80 | 0.2218 | 3.3 GB |
+| `p2_640` | 640 | **160×160** | 0.2204 | 14.3 GB |
+| `finetune_1280` | 1280 | **160×160** | **0.3264** | 17.5 GB |
+
+They don't. `p2_640` matched the plain 640 baseline to within 0.6% — the extra
+detection level bought nothing — and fell 32.5% short of the model with the
+matching grid, for 4× the training memory.
+
+So the mechanism is **not** cell density. The P2 map branches off backbone
+layer 2, so it is fine-grained but semantically shallow: it can localise
+without recognising. Resolution instead enlarges the object at *every* level
+of the hierarchy, which is what lets deep features resolve it. Fine grids are
+not the scarce resource; fine grids **carrying deep features** are.
+
+That also explains the tiling result below — tiling raises effective
+resolution, so it helps a starved model; P2 raises only grid density, so it
+helps nothing. Initialisation caveat and the follow-up experiment in
+[docs/02](docs/02-resolution-and-stride.md).
+
 ### The mechanism holds up
 
 Monotonic curves are not enough — a bigger input could help for any number of
