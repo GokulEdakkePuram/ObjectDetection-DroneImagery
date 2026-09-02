@@ -79,7 +79,12 @@ predict, and is the most interesting thing in the table.
 > mildly optimistic. `test-dev` is held out for a single final measurement —
 > see [docs/04](docs/04-reading-the-metrics.md).
 
-Tiled inference is not in the table yet; `aerialdet tiled-eval` runs next.
+**Tiled inference makes this model worse**: 0.2799 against 0.3112 whole-frame
+at 1280, for 1.6x the latency. On a weakly-trained checkpoint the same code
+gave +45%. Together those say tiling *substitutes* for resolution rather than
+adding to it — a 1280 model has already bought the pixels tiling would supply,
+so only tiling's seam artifacts remain. See
+[docs/03](docs/03-tiled-inference.md).
 
 Hardware: Apple M2 Pro (16 GB, MPS) for development; a rented RTX 4090
 (24 GB, CUDA 13) for training. The profile that produced each result is

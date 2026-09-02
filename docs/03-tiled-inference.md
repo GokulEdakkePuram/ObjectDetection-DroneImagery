@@ -87,21 +87,55 @@ Both modes also run at `conf=0.001`, the threshold Ultralytics validates at
 would truncate the low-confidence tail that the recall end of the PR curve
 depends on, and it would truncate it differently for the two modes.
 
-## Results
+## Results: tiling loses, and that is the interesting part
 
-> Pending a properly trained checkpoint. An early check on 12 val images with
-> a weakly-trained `yolo11s` gave **+45% mAP50-95 for 1.5x the latency** —
-> enough to show the machinery works and that the effect points the right way,
-> but far too few images and too weak a model to quote as a result.
+`finetune_1280`, full 548-image val split, tiles of 640 px at 0.2 overlap:
 
-| mode | tiles/frame | mAP50-95 | mAP50 | ms/frame |
-| --- | ---: | ---: | ---: | ---: |
-| whole frame @960 | 1 | | | |
-| tiled 640 / 0.2 | 6 | | | |
-| tiled 512 / 0.3 | 12 | | | |
+| mode | mAP50-95 | mAP50 | precision | recall | ms/frame |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| whole frame @1280 | **0.3112** | 0.5029 | 0.6326 | 0.5115 | 16 |
+| tiled 640 / 0.2 | 0.2799 | 0.4617 | 0.5562 | 0.4981 | 25 |
 
-The number worth reporting is not "tiling wins" but the exchange rate: how
-much mAP per millisecond, and whether the gain concentrates in the smallest
-classes (`pedestrian`, `people`, `motor`) as the argument in
-[doc 01](01-why-small-objects-are-hard.md) predicts. If tiling helps `bus`
-as much as `pedestrian`, the stated mechanism is wrong.
+**−10.1% mAP50-95 for 1.6x the latency.** Tiling made this model worse.
+
+That is worth keeping rather than burying, because the mechanism is legible in
+the precision/recall split. Tiling did not fail to find things — it found more
+and was wrong more often. Its detections rose from 148k to 425k, and the loss
+is concentrated in precision (0.633 → 0.556), which is what tile-seam
+duplicates and edge-truncated boxes produce.
+
+### Why an earlier check said the opposite
+
+On a weakly-trained checkpoint (`yolo11s` at 0.10 mAP50-95), tiling scored
+**+45%**. On a well-trained 1280 model it costs 10%. Both are real, and
+together they say something neither says alone:
+
+> Tiling *substitutes* for resolution rather than adding to it.
+
+A 640 px model cannot resolve a 20 px car — tiling gives it the pixels and
+helps enormously. A model already trained at 1280 has bought those pixels
+already, so tiling contributes nothing new and keeps only its costs. This is
+the same stride-floor argument from [doc 01](01-why-small-objects-are-hard.md)
+seen from the other side, and it is consistent with the r = −0.88 correlation
+between object size and resolution gain in
+[doc 02](02-resolution-and-stride.md).
+
+The falsifying test is cheap: run `tiled-eval` on `baseline_640`. If tiling
+helps the model that cannot resolve small objects and hurts the one that can,
+the substitution claim holds at both ends.
+
+### Two caveats on the numbers
+
+**The comparison is skewed toward tiling, and tiling still loses.** The
+whole-frame arm averages 271 detections per image against a `max_det` cap of
+300 — it is running into the ceiling described in
+[doc 04](04-reading-the-metrics.md). The tiled arm gets up to 300 *per tile*
+before merging, so roughly six times the budget. Removing that asymmetry would
+likely widen the gap, not close it.
+
+**The absolute whole-frame figure here (0.3112) is below what `aerialdet eval`
+reports for the same checkpoint (0.3260).** Ultralytics' validator uses
+rectangular batching and its own preprocessing; this module drives
+`model.predict` per image. Both arms of *this* comparison go through the
+identical path, so the comparison between them is sound — but the absolute
+number is not directly interchangeable with the eval table.
