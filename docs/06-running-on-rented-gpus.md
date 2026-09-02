@@ -79,13 +79,48 @@ processing 4x the data at 1280. Time does not: quadrupling the pixels costs
 A GPU-bound pipeline could not do that. The 4090 is finishing each batch and
 waiting, so the constraint is upstream — decoding and augmenting images on
 CPU, with mosaic (which composites four source images per sample) the obvious
-suspect. Two cheap ways to test it: watch `nvidia-smi` during training and
-look for utilisation well under 100%, or raise `workers` in the profile and
-see whether the 640 rate improves.
+suspect.
 
-This matters for reading the ablation. The usual argument against high
-resolution is that it costs too much; on this hardware it costs 42%. If 1280
-wins on mAP, there is little reason to compromise.
+The capacity ablation then confirmed it independently. At fixed 960 px:
+
+| model | params | GFLOPs | train ms/img | peak VRAM |
+| --- | ---: | ---: | ---: | ---: |
+| yolo11n | 2.6 M | 6.5 | 15.0 | 6.1 GB |
+| yolo11s | 9.4 M | 21.4 | 14.5 | 8.1 GB |
+| yolo11m | 20.0 M | 67.8 | 19.1 | 12.2 GB |
+
+`yolo11n` is *slower* than `yolo11s` despite 3.6x fewer parameters — the two
+are indistinguishable because neither is the bottleneck. Across the three
+models a **10.4x span in FLOPs produces a 1.32x span in wall clock**. That is
+about as clean a signature of an input-bound pipeline as you could ask for,
+and it arrived from a different direction than the resolution result.
+
+Memory behaves differently and usefully: it tracks compute faithfully in both
+ablations. So the models genuinely are doing the extra work — they are simply
+not what you are waiting for.
+
+### Two consequences
+
+**For reading the results.** The usual argument against high resolution or a
+bigger model is that it costs too much. Here resolution costs 42% and capacity
+costs 32%, so a result favouring either is a weaker claim than the same result
+on hardware where the GPU is saturated.
+
+**For deployment, the opposite.** Training throughput is dominated by
+augmentation that inference never performs. In the validation pass, with no
+mosaic in the path, `yolo11s` and `yolo11m` run at 1.6 ms and 2.2 ms per
+image. On a power- and thermally-constrained drone the GPU *is* the
+constraint, so FLOPs matter there in a way they do not here. Never quote a
+training-time cost as if it were a deployment cost.
+
+### Fixing it, if you want to
+
+The bottleneck is CPU-side, so more dataloader workers should help. `workers`
+lives in the hardware profile precisely because it is a machine property:
+raise it in `configs/profiles/cuda24.yaml` and re-probe. If the 640 rate
+improves, the diagnosis is confirmed and the sweep gets cheaper. Watching
+`nvidia-smi` during a run is the other cheap check — utilisation well under
+100% says the same thing.
 
 ## Calibrating honestly
 

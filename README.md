@@ -43,21 +43,40 @@ ablation single-variable:
 Against ~5 days for the same work on the laptop, at a rental cost of a few
 dollars.
 
-**Resolution is nearly free here, and that is a finding rather than a
-footnote.** Normalised against 640:
+A second axis, capacity at fixed 960 px:
 
-| imgsz | pixels | VRAM | time |
-| ---: | ---: | ---: | ---: |
-| 640 | 1.00× | 1.00× | 1.00× |
-| 960 | 2.25× | 2.45× | 1.06× |
-| 1280 | 4.00× | 4.12× | **1.42×** |
+| config | model | params | per image | 50 epochs | peak VRAM |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `size_n_960` | yolo11n | 2.6 M | 15.0 ms | 1.4 h | 6.1 GB |
+| `finetune_960` | yolo11s | 9.4 M | 14.5 ms | 1.3 h | 8.1 GB |
+| `size_m_960` | yolo11m | 20.0 M | 19.1 ms | 1.7 h | 12.2 GB |
 
-Memory tracks pixel count almost exactly, so the model really is doing 4× the
-work at 1280. Time does not follow, which means the GPU is not the constraint
-— the input pipeline is, and mosaic augmentation on CPU is the obvious
-suspect. The practical consequence: if higher resolution wins on mAP, the
-usual reason to compromise (it costs too much) does not apply on this
-hardware.
+### Training here is input-bound, not compute-bound
+
+Both ablations say the same thing. Normalised against `yolo11s` at 960:
+
+| axis | | compute | train time |
+| --- | --- | ---: | ---: |
+| resolution | 640 → 1280 | 4.00× pixels | 1.42× |
+| capacity | yolo11n → yolo11m | 10.4× FLOPs | 1.32× |
+
+`yolo11n` is *slower* than `yolo11s` (15.0 vs 14.5 ms) despite 3.6× fewer
+parameters. A GPU-bound pipeline cannot do that. A **10× span in compute
+producing a 1.3× span in wall clock** means the 4090 spends most of its time
+waiting on CPU-side decode and augmentation — mosaic composites four source
+images per sample, which is expensive at 960 px.
+
+Memory, by contrast, tracks compute faithfully (VRAM scales 0.75 / 1.00 / 1.51
+across the models, and 1.00 / 2.45 / 4.12 across resolutions), which confirms
+the models really are doing the extra work — they just are not the bottleneck.
+
+**This changes how to read every result below.** "Higher resolution wins" and
+"more capacity wins" are weak claims on hardware where both are nearly free.
+It also does *not* transfer to deployment: training throughput is dominated by
+augmentation that inference never runs. The validation pass, with no mosaic in
+the path, separates `yolo11s` and `yolo11m` at 1.6 ms and 2.2 ms per image —
+so on a power-constrained drone, FLOPs would matter a great deal more than
+they do here.
 
 ## The argument in one table
 
