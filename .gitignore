@@ -11,6 +11,9 @@ weights/
 # worth keeping are transcribed into docs/ alongside their interpretation.
 reports/
 
+# Per-run training logs written by scripts/run_sweep.sh.
+logs/
+
 # Python
 __pycache__/
 *.py[cod]
