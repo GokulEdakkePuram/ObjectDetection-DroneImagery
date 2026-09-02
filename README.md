@@ -22,20 +22,52 @@ All five runs: 50 epochs, VisDrone `val`, constant `batch: 8` on one RTX 4090.
 
 | run | imgsz | mAP50-95 | mAP50 | vs control | train time |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `baseline_640` (control) | 640 | 0.2211 | 0.3786 | — | 1.2 h |
-| `finetune_960` | 960 | 0.2866 | 0.4737 | **+29.6%** | 1.3 h |
-| `finetune_1280` | 1280 | **0.3246** | 0.5273 | **+46.8%** | 1.8 h |
+| `baseline_640` (control) | 640 | 0.2218 | 0.3797 | — | 1.2 h |
+| `finetune_960` | 960 | 0.2873 | 0.4739 | **+29.5%** | 1.3 h |
+| `finetune_1280` | 1280 | **0.3260** | 0.5284 | **+47.0%** | 1.8 h |
 
 **Capacity** (960 px, only the model varies):
 
 | run | model | params | mAP50-95 | mAP50 | train time |
 | --- | --- | ---: | ---: | ---: | ---: |
-| `size_n_960` | yolo11n | 2.6 M | 0.2325 | 0.3925 | 1.4 h |
-| `finetune_960` | yolo11s | 9.4 M | 0.2866 | 0.4737 | 1.3 h |
-| `size_m_960` | yolo11m | 20.0 M | **0.3272** | 0.5326 | 1.7 h |
+| `size_n_960` | yolo11n | 2.6 M | 0.2324 | 0.3928 | 1.4 h |
+| `finetune_960` | yolo11s | 9.4 M | 0.2873 | 0.4739 | 1.3 h |
+| `size_m_960` | yolo11m | 20.0 M | **0.3203** | 0.5201 | 1.7 h |
 
-Both axes are monotonic, so the stride-floor argument in
-[docs/01](docs/01-why-small-objects-are-hard.md) survives its first real test.
+Each checkpoint is scored at the resolution it was trained for.
+
+### The mechanism holds up
+
+Monotonic curves are not enough — a bigger input could help for any number of
+reasons. [docs/01](docs/01-why-small-objects-are-hard.md) made a *falsifiable*
+prediction: if resolution works by lifting objects above the detector's
+stride-8 floor, the gain must concentrate in the smallest classes. If `bus`
+improved as much as `pedestrian`, the explanation was wrong.
+
+Per-class AP50, 640 → 1280, ordered by median object size:
+
+| class | median side | AP50 @640 | AP50 @1280 | absolute gain |
+| --- | ---: | ---: | ---: | ---: |
+| people | 16.7 px | 0.3037 | 0.4837 | +0.180 |
+| pedestrian | 17.2 px | 0.4134 | 0.6291 | +0.216 |
+| motor | 20.0 px | 0.4427 | 0.6314 | +0.189 |
+| bicycle | 20.8 px | 0.1241 | 0.3315 | +0.207 |
+| tricycle | 28.4 px | 0.2683 | 0.4200 | +0.152 |
+| awning-tricycle | 29.3 px | 0.1267 | 0.2305 | +0.104 |
+| car | 32.5 px | 0.7761 | 0.8705 | +0.094 |
+| van | 33.6 px | 0.4299 | 0.5504 | +0.121 |
+| bus | 35.2 px | 0.5270 | 0.6707 | +0.144 |
+| truck | 38.6 px | 0.3849 | 0.4661 | +0.081 |
+
+**Absolute AP50 gain correlates with object size at r = −0.88.** The four
+smallest classes gain **1.71×** what the six largest do. The prediction holds.
+
+One trap worth naming. Ranked by *percentage* gain, `bicycle` looks
+spectacular at +167% — but relative gain correlates with the *baseline* score
+at r = −0.77, and only −0.50 with size. Classes that started badly show large
+percentage gains regardless of why. Absolute gain removes that confound, and
+it is the measure that gives r = −0.88. The headline survives the stricter
+test; it would have been overstated by the looser one.
 
 **The two axes buy almost the same thing.** `yolo11m` at 960 (0.3272) and
 `yolo11s` at 1280 (0.3246) are within 0.8% of each other, for 1.7 h and 1.8 h
