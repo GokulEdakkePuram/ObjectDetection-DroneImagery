@@ -193,7 +193,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--data", default="VisDrone.yaml")
     p.add_argument("--split", default="val")
     p.add_argument("--limit", type=int, default=None, help="evaluate only the first N images")
-    p.add_argument("--imgsz", type=int, default=960, help="input size for whole-frame mode")
+    p.add_argument(
+        "--imgsz",
+        type=int,
+        default=None,
+        help="whole-frame input size (default: the checkpoint's training resolution)",
+    )
     p.add_argument("--tile", type=int, default=640)
     p.add_argument("--overlap", type=float, default=0.2)
     p.add_argument("--conf", type=float, default=0.001)

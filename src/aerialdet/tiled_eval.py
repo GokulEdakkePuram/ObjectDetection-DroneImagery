@@ -180,11 +180,21 @@ def compare(
     limit: int | None = None,
     **kwargs: Any,
 ) -> list[ModeResult]:
-    """Score whole-frame and tiled inference on the same images."""
+    """Score whole-frame and tiled inference on the same images.
+
+    The whole-frame arm defaults to the resolution the checkpoint was trained
+    at. A fixed default silently handicaps the baseline -- scoring a 1280 run
+    at 960 makes tiling look better than it is, which is the flattering
+    direction and therefore the dangerous one.
+    """
     from ultralytics import YOLO
     from ultralytics.data.utils import check_det_dataset
 
+    from .evaluate import training_imgsz
+
     configure_ultralytics()
+    if kwargs.get("imgsz") is None:
+        kwargs["imgsz"] = training_imgsz(weights) or 960
     spec = check_det_dataset(data)
     images_dir = Path(spec[split])
     labels_dir = Path(str(images_dir).replace("/images/", "/labels/"))
@@ -201,7 +211,11 @@ def compare(
         for mode in ("whole", "tiled")
     ]
 
-    print(f"\n{len(images)} images from the {split} split, conf={kwargs.get('conf', VAL_CONF)}")
+    print(
+        f"\n{len(images)} images from the {split} split, "
+        f"conf={kwargs.get('conf', VAL_CONF)}, whole-frame imgsz={kwargs['imgsz']}, "
+        f"tile={kwargs.get('tile', 640)}"
+    )
     print("\n| mode | mAP50-95 | mAP50 | precision | recall | ms/img | dets |")
     print("| --- | ---: | ---: | ---: | ---: | ---: | ---: |")
     for r in results:
