@@ -184,6 +184,22 @@ initialisation were dominating, `p2_640` should have landed clearly *below*
 `baseline_640`; instead it landed on top of it, which reads more like an
 architecture that contributed nothing than one that was held back.
 
-Separating the two is a further experiment, not an inference: train `p2_640`
-for 150 epochs, or initialise `baseline_640` from the same partial transfer
-and see whether it loses the same amount.
+One half of it can be settled from the data already collected. If weak
+initialisation meant P2 simply needed longer, its curve should still have been
+climbing at epoch 50. It was not:
+
+| run | best epoch | best mAP50-95 | change over last 10 ep | stalled for |
+| --- | ---: | ---: | ---: | ---: |
+| `baseline_640` | 40 | 0.2211 | −0.0032 | 10 ep |
+| `p2_640` | **37** | 0.2197 | −0.0016 | **13 ep** |
+| `finetune_1280` | 34 | 0.3246 | −0.0035 | 16 ep |
+
+`p2_640` peaked *earlier* than the baseline it tied with, and had been flat for
+13 epochs by the end. So "it needed more epochs" is ruled out — the model
+converged, and converged to the same place as the plain 640 baseline.
+
+What remains open is narrower: a partly random neck may have converged to a
+*worse optimum*, not merely a later one. Testing that means initialising
+`baseline_640` from the same 297/593 partial transfer and seeing whether it
+gives up the same ground. That is a real experiment, but it is no longer a
+plausible explanation for the whole effect.

@@ -36,6 +36,31 @@ All five runs: 50 epochs, VisDrone `val`, constant `batch: 8` on one RTX 4090.
 
 Each checkpoint is scored at the resolution it was trained for.
 
+### Held-out check on test-dev
+
+Everything above is `val`, and `best.pt` was *selected* on `val`, so those
+numbers are optimistic by construction. `test-dev` (1,610 images) was left
+untouched until the ablation was finished, then measured once:
+
+| run | val | test-dev | drop |
+| --- | ---: | ---: | ---: |
+| `baseline_640` | 0.2218 | 0.1786 | −19.5% |
+| `finetune_1280` | 0.3264 | 0.2533 | −22.4% |
+| `size_m_960` | 0.3203 | **0.2550** | −20.4% |
+
+**The headline claim survives.** Resolution 640 → 1280 is **+41.8%** on
+held-out data against +47.2% on `val` — smaller, as it should be, but the
+effect is real and not an artifact of selecting on the validation split. The
+~20% drop is near-uniform across runs, which is what makes the comparison
+between them still trustworthy.
+
+**The top two swap places, and that is the honest result.** `finetune_1280`
+leads on `val` by 1.9%; `size_m_960` leads on `test-dev` by 0.7%. Two models
+that trade rank depending on the split are not separated by the data. So the
+correct statement is not "1280 wins" but that resolution and capacity buy the
+same thing at the same price here — which is what the equal training cost
+(1.8 h vs 1.7 h) already suggested.
+
 ### But a P2 head does not reproduce the effect
 
 A stride-4 detection head at 640 px reaches a 160×160 finest grid — exactly
