@@ -10,18 +10,36 @@ from .config import resolve_device
 from .paths import REPORTS_DIR, RUNS_DIR, configure_ultralytics
 
 
+def training_imgsz(weights: str) -> int | None:
+    """Recover the resolution a checkpoint was trained at, from its run dir."""
+    import yaml
+
+    args = Path(weights).parent.parent / "args.yaml"
+    if args.exists():
+        return (yaml.safe_load(args.read_text()) or {}).get("imgsz")
+    return None
+
+
 def evaluate(
     weights: str,
     data: str = "VisDrone.yaml",
-    imgsz: int = 960,
+    imgsz: int | None = None,
     split: str = "val",
     device: str = "auto",
     batch: int = 8,
 ) -> dict[str, Any]:
-    """Run validation for one checkpoint and return a flat metrics dict."""
+    """Run validation for one checkpoint and return a flat metrics dict.
+
+    ``imgsz`` defaults to the resolution the checkpoint was *trained* at, read
+    back from its run directory. A fixed default silently handicaps a
+    high-resolution model -- evaluating a 1280 run at 960 measures something
+    other than the ablation it belongs to.
+    """
     from ultralytics import YOLO
 
     configure_ultralytics()
+    if imgsz is None:
+        imgsz = training_imgsz(weights) or 960
     model = YOLO(weights)
     metrics = model.val(
         data=data,

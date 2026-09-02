@@ -44,10 +44,24 @@ def train(
     kwargs.setdefault("project", str(RUNS_DIR / "train"))
 
     print(f"[aerialdet] training '{cfg.name}' on {kwargs['device']} ({cfg.model})")
+
+    # Write the resolved config *before* training, not after. Written after, a
+    # failure in any post-training step -- a W&B artifact upload, say -- loses
+    # the traceability record for a run whose weights and metrics are all
+    # perfectly fine. That happened: two 50-epoch runs finished, then raised
+    # during upload, and were left unidentifiable.
+    save_dir = Path(kwargs["project"]) / cfg.name
+    save_dir.mkdir(parents=True, exist_ok=True)
+    (save_dir / "aerialdet_config.json").write_text(json.dumps(asdict(cfg), indent=2))
+
     results = model.train(**kwargs)
 
-    save_dir = Path(results.save_dir)
-    (save_dir / "aerialdet_config.json").write_text(json.dumps(asdict(cfg), indent=2))
+    # Ultralytics increments the directory if it already existed, so re-record
+    # under wherever the run actually landed.
+    actual = Path(results.save_dir)
+    if actual != save_dir:
+        (actual / "aerialdet_config.json").write_text(json.dumps(asdict(cfg), indent=2))
+    save_dir = actual
 
     return {
         "name": cfg.name,

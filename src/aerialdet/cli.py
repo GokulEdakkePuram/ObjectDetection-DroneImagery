@@ -168,7 +168,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("eval", help="validate one or more checkpoints")
     p.add_argument("weights", nargs="+")
     p.add_argument("--data", default="VisDrone.yaml")
-    p.add_argument("--imgsz", type=int, default=960)
+    p.add_argument(
+        "--imgsz",
+        type=int,
+        default=None,
+        help="default: each checkpoint's own training resolution",
+    )
     p.add_argument("--split", default="val")
     p.add_argument("--device", default="auto")
     p.set_defaults(func=_cmd_eval)
