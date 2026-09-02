@@ -120,9 +120,45 @@ seen from the other side, and it is consistent with the r = −0.88 correlation
 between object size and resolution gain in
 [doc 02](02-resolution-and-stride.md).
 
-The falsifying test is cheap: run `tiled-eval` on `baseline_640`. If tiling
-helps the model that cannot resolve small objects and hurts the one that can,
-the substitution claim holds at both ends.
+### The test, and it passed
+
+Running the same comparison on `baseline_640` — the model that *cannot*
+resolve small objects — flips the sign:
+
+| checkpoint | mode | mAP50-95 | precision | recall | ms |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `baseline_640` | whole @640 | 0.2056 | 0.534 | 0.372 | 13 |
+| `baseline_640` | tiled 640 | **0.2309** | 0.493 | 0.436 | 26 |
+| `finetune_1280` | whole @1280 | **0.3112** | 0.633 | 0.511 | 16 |
+| `finetune_1280` | tiled 640 | 0.2799 | 0.556 | 0.498 | 25 |
+
+**+12.3% where the model is resolution-starved, −10.1% where it is not.**
+
+The mechanism is identical in both cases — tiling trades precision for recall,
+because seams create duplicates and truncated boxes while native-scale crops
+expose objects the downscaled frame lost. Only the *balance* changes. At 640
+the recall gain is large (+17%) and outweighs the precision cost. At 1280 the
+model has already found those objects, so recall barely moves (−3%) and the
+precision cost is all that is left.
+
+### But do not tile — raise the resolution instead
+
+The substitution is real but partial, and it loses on cost:
+
+```
+tiled 640   mAP 0.2309 at 26 ms
+whole 1280  mAP 0.3112 at 16 ms     <- better on both axes
+```
+
+Tiling recovers only **24%** of what moving 640 → 1280 buys, while costing
+*more* wall clock than the 1280 model does. It is Pareto-dominated: there is
+no operating point on this hardware where tiling is the right answer.
+
+That conclusion is specific and worth qualifying. Tiling earns its place when
+resolution is not a free variable — a fixed-input exported model, an edge
+accelerator with a hard input cap, or frames so large that the whole image
+cannot fit in memory at native scale. None of those apply here, and on a
+laptop or a rented GPU raising `imgsz` is simply the better instrument.
 
 ### Two caveats on the numbers
 

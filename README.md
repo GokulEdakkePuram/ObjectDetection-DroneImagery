@@ -79,12 +79,25 @@ predict, and is the most interesting thing in the table.
 > mildly optimistic. `test-dev` is held out for a single final measurement —
 > see [docs/04](docs/04-reading-the-metrics.md).
 
-**Tiled inference makes this model worse**: 0.2799 against 0.3112 whole-frame
-at 1280, for 1.6x the latency. On a weakly-trained checkpoint the same code
-gave +45%. Together those say tiling *substitutes* for resolution rather than
-adding to it — a 1280 model has already bought the pixels tiling would supply,
-so only tiling's seam artifacts remain. See
-[docs/03](docs/03-tiled-inference.md).
+### Tiled inference substitutes for resolution — and loses to it
+
+| checkpoint | mode | mAP50-95 | ms/frame |
+| --- | --- | ---: | ---: |
+| `baseline_640` | whole @640 | 0.2056 | 13 |
+| `baseline_640` | tiled 640 | **0.2309** (+12.3%) | 26 |
+| `finetune_1280` | whole @1280 | **0.3112** | 16 |
+| `finetune_1280` | tiled 640 | 0.2799 (−10.1%) | 25 |
+
+Sliced inference **helps the resolution-starved model and hurts the one
+already trained at high resolution**. The mechanism is the same in both — it
+trades precision for recall, buying back objects the downscaled frame lost
+while adding seam duplicates. Only the balance changes.
+
+So tiling substitutes for resolution rather than adding to it. It is also
+strictly the worse instrument here: `tiled 640` reaches 0.2309 at 26 ms while
+`whole 1280` reaches 0.3112 at 16 ms — Pareto-dominated on both axes. Tiling
+earns its place only where input size is fixed by deployment. Details and
+caveats in [docs/03](docs/03-tiled-inference.md).
 
 Hardware: Apple M2 Pro (16 GB, MPS) for development; a rented RTX 4090
 (24 GB, CUDA 13) for training. The profile that produced each result is
