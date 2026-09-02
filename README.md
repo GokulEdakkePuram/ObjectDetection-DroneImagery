@@ -48,11 +48,17 @@ area. If cell density were the mechanism, they should score alike:
 | `p2_640` | 640 | **160×160** | 0.2204 | 14.3 GB |
 | `finetune_1280` | 1280 | **160×160** | **0.3264** | 17.5 GB |
 
-They don't. `p2_640` matched the plain 640 baseline to within 0.6% — the extra
-detection level bought nothing — and fell 32.5% short of the model with the
-matching grid, for 4× the training memory.
+They don't. `p2_640` fell 32.5% short of the model with the matching grid and
+landed within 0.6% of the plain 640 baseline — for 4× the training memory.
 
-So the mechanism is **not** cell density. The P2 map branches off backbone
+That aggregate hides the interesting part. Per class, P2's delta against the
+640 baseline correlates with object size at **r = −0.74**: the smallest four
+classes gain (+0.013 mean), the largest six lose (−0.012), and they cancel.
+The extra head acts on the predicted mechanism — it is just ~15× weaker than
+resolution and pays for the gain by degrading larger objects, which resolution
+never does.
+
+So cell density is a real but minor part of the mechanism, not the mechanism. The P2 map branches off backbone
 layer 2, so it is fine-grained but semantically shallow: it can localise
 without recognising. Resolution instead enlarges the object at *every* level
 of the hierarchy, which is what lets deep features resolve it. Fine grids are

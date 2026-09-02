@@ -109,13 +109,50 @@ score alike.
 | `p2_640` | yolo11s-p2 | 640 | **160x160** | 0.2204 | 15.4 | 14.3 GB |
 | `finetune_1280` | yolo11s | 1280 | **160x160** | **0.3264** | 19.5 | 17.5 GB |
 
-**They do not score alike. It is not close.**
+**They do not score alike. It is not close.** `p2_640` fell 32.5% short of
+the model with the same finest grid, and landed within 0.6% of the plain 640
+baseline.
 
-`p2_640` matched the same-resolution baseline to within 0.6% — the extra
-detection level bought nothing at all — and fell 32.5% short of the model with
-the same finest grid. So grid density is not the mechanism, and the version of
-the stride-floor argument in [doc 01](01-why-small-objects-are-hard.md) that
-leans on cell counts is wrong.
+So grid density is not the mechanism, and the version of the stride-floor
+argument in [doc 01](01-why-small-objects-are-hard.md) that leans on cell
+counts is wrong.
+
+### The net zero is a cancellation, not an absence
+
+Reading only the aggregate would say the P2 head did nothing. Per class,
+against the same-resolution baseline, it plainly did something:
+
+| class | median side | AP50 @640 | AP50 P2@640 | delta |
+| --- | ---: | ---: | ---: | ---: |
+| people | 16.7 px | 0.304 | 0.323 | **+0.019** |
+| pedestrian | 17.2 px | 0.413 | 0.440 | **+0.027** |
+| motor | 20.0 px | 0.443 | 0.450 | +0.007 |
+| bicycle | 20.8 px | 0.124 | 0.121 | −0.003 |
+| tricycle | 28.4 px | 0.268 | 0.255 | −0.013 |
+| awning-tricycle | 29.3 px | 0.127 | 0.112 | −0.015 |
+| car | 32.5 px | 0.776 | 0.796 | +0.020 |
+| van | 33.6 px | 0.430 | 0.415 | −0.015 |
+| bus | 35.2 px | 0.527 | 0.511 | −0.016 |
+| truck | 38.6 px | 0.385 | 0.352 | **−0.033** |
+
+The delta correlates with object size at **r = −0.74** — the same direction as
+resolution's r = −0.88. The smallest four classes gain (+0.013 mean); the
+largest six lose (−0.012 mean). They cancel.
+
+So the P2 head *does* act on the predicted mechanism. It is simply far weaker,
+and it charges for the gain:
+
+| | small classes | large classes |
+| --- | ---: | ---: |
+| resolution, 640 → 1280 | **+0.198** | +0.116 |
+| P2 head at 640 | +0.013 | −0.012 |
+
+Resolution's small-object gain is roughly **15x** P2's, and resolution improves
+the large classes as well rather than trading them away. Grid density is a real
+but minor component of what resolution provides — and adding a fourth
+detection level appears to cost something on larger objects, plausibly through
+label assignment being redistributed across four heads with the shallowest one
+handling cases P3 previously owned.
 
 ### Why it fails
 
