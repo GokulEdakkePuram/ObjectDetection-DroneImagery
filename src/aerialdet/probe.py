@@ -153,7 +153,11 @@ def probe(
         points.append((int(train_images * fraction), seconds))
 
     overhead, rate = _fit(points)
-    peak = torch.cuda.max_memory_allocated() / 1024**3 if torch.cuda.is_available() else None
+    # Reserved, not allocated. PyTorch's caching allocator holds freed blocks,
+    # so reserved exceeds allocated -- and reserved is what runs the card out of
+    # memory. Ultralytics' own GPU_mem column reports reserved for this reason;
+    # reporting allocated here understated a 1280 run by 29% (13.6 vs 17.5 GB).
+    peak = torch.cuda.max_memory_reserved() / 1024**3 if torch.cuda.is_available() else None
 
     return ProbeResult(
         name=config,

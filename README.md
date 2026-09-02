@@ -40,6 +40,12 @@ ablation single-variable:
 | `finetune_1280` | 1280 | 8 | 19.5 ms | 2.1 min | 1.8 h | 13.6 GB |
 | **full sweep** | | | | | **4.3 h** | |
 
+Those VRAM figures are `max_memory_allocated`, and they **understate what the
+card must supply**: PyTorch's caching allocator reserves more than it allocates,
+and reserved memory is what triggers an OOM. The real `finetune_1280` run
+reserved **17.5 GB** against the 13.6 GB measured here — a 29% gap. `probe` now
+reports reserved for this reason.
+
 Against ~5 days for the same work on the laptop, at a rental cost of a few
 dollars.
 
