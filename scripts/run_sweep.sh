@@ -42,7 +42,10 @@ for cfg in "${CONFIGS[@]}"; do
     echo "---- ${cfg} : started $(date +%H:%M:%S) ----"
     started=${SECONDS}
 
-    if uv run aerialdet train "${cfg}" --track "${TRACK}" > "${LOG_DIR}/${cfg}.log" 2>&1; then
+    # tee, not `>`: a silent terminal for two hours is indistinguishable from a
+    # hang, and the first thing anyone does about a hang is kill it. `pipefail`
+    # is set above, so the exit status is still the trainer's, not tee's.
+    if uv run aerialdet train "${cfg}" --track "${TRACK}" 2>&1 | tee "${LOG_DIR}/${cfg}.log"; then
         SUCCEEDED+=("${cfg}")
         printf -- "---- %s : OK in %dm%02ds ----\n" "${cfg}" $(( (SECONDS-started)/60 )) $(( (SECONDS-started)%60 ))
     else
